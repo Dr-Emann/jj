@@ -85,7 +85,7 @@ commits will be accessible in both repos. Use `jj git import` to update the
 Jujutsu repo with changes made in the Git repo. Use `jj git export` to update
 the Git repo with changes made in the Jujutsu repo.
 
-### Co-located Jujutsu/Git repos
+### Colocated Jujutsu/Git repos
 
 If you initialize the Jujutsu repo in the same working copy as the Git repo by
 running `jj init --git-repo=.`, then the import and export will happen
@@ -98,8 +98,11 @@ existing Git repo. You should then be able to switch to using mutating `jj`
 commands and readonly Git commands. It's also useful when tools (e.g. build
 tools) expect a Git repo to be present.
 
-There are some bugs and surprising behavior related to `jj undo` in this mode,
-such as #922.
+There are a few downsides to this mode of operation:
+
+- Colocated repositories are less resilient to [TODO: link to distributed]. While the contents of commits should be just as safe as before, concurrent modification of a repository from different computers might, in the worst case, lose some branch pointers. Note that, unlike in pure Git, losing a branch pointer does not lead to losing commits.
+- Interleaving mutating `jj` and `git` commands increses the chance of confusing branch conflicts. These never lose data, but can be annoying, especially if they are unexpected.
+- There are also some known bugs when interleaving mutating `jj` and `git` commands, usually also having todo with a branch pointer ending up in the wrong place. We are working on them, and are not aware of any major ones. Please report any new ones you find, or if any of the known bugs are less minor than they appear.
 
 ## Creating a repo by cloning a Git repo
 

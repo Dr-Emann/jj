@@ -58,6 +58,8 @@ regular Git commits. You can always switch back to Git. The Git support uses the
 backend. The backend exists mainly to make sure that it's possible to eventually
 add functionality that cannot easily be added to the Git backend.
 
+TODO: link
+
 <img src="demos/git_compat.png" />
 
 ### The working copy is automatically committed
