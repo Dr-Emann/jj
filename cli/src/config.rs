@@ -344,6 +344,7 @@ pub fn default_config() -> config::Config {
         };
     }
     let mut builder = config::Config::builder()
+        .add_source(from_toml!("config/aliases.toml"))
         .add_source(from_toml!("config/colors.toml"))
         .add_source(from_toml!("config/merge_tools.toml"))
         .add_source(from_toml!("config/misc.toml"))

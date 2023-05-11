@@ -18,6 +18,11 @@
   } //
   (flake-utils.lib.eachDefaultSystem (system:
     let
+      # TODO(aseipp): Use dirtyRev and dirtyShortRev to record dirty checkout
+      # when we update `build.rs` to understand dirty checkouts.
+      gitRev = self.rev or "";
+      gitDate = builtins.substring 0 8 (self.lastModifiedDate or self.lastModified or "");
+
       pkgs = import nixpkgs {
         inherit system;
         overlays = [
@@ -73,10 +78,11 @@
             darwin.apple_sdk.frameworks.Security
             darwin.apple_sdk.frameworks.SystemConfiguration
             libiconv
-            ];
+          ];
           ZSTD_SYS_USE_PKG_CONFIG = "1";
           LIBSSH2_SYS_USE_PKG_CONFIG = "1";
-          NIX_JJ_GIT_HASH = self.rev or "";
+          NIX_JJ_GIT_HASH = gitRev;
+          NIX_JJ_GIT_DATE = gitDate;
           CARGO_INCREMENTAL = "0";
           postInstall = ''
             $out/bin/jj util mangen > ./jj.1
@@ -134,6 +140,8 @@
           export RUST_BACKTRACE=1
           export ZSTD_SYS_USE_PKG_CONFIG=1
           export LIBSSH2_SYS_USE_PKG_CONFIG=1
+          export NIX_JJ_GIT_HASH="${gitRev}"
+          export NIX_JJ_GIT_DATE="${gitDate};
         '';
       };
     }));
