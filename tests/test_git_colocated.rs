@@ -307,6 +307,26 @@ fn test_git_colocated_fetch_deleted_or_moved_branch() {
     ◉  a86754f975f953fa25da4265764adc0c62e9ce6b A master HEAD@git A
     ◉  0000000000000000000000000000000000000000
     "###);
+
+    // TODO: Move me
+    let stdout = test_env.jj_cmd_success(&clone_path, &["branch", "list"]);
+    insta::assert_snapshot!(stdout, @r###"
+    A: a86754f975f9 A
+    C_to_move: 04fd29df0563 moved C
+    master: a86754f975f9 A
+    "###);
+
+    let stdout = test_env.jj_cmd_success(&clone_path, &["branch", "forget", "C_to_move"]);
+    insta::assert_snapshot!(stdout, @"");
+    // A forgotten branch is deleted in the git repo. TODO: demo this, explain how
+    // it's connected to not forgetting
+    // TODO: Something trickier happens if the git repo has a remote-tracking branch
+    // TODO: Figure out that situation, demo how checking out an @git branch helps
+    let stdout = test_env.jj_cmd_success(&clone_path, &["branch", "list"]);
+    insta::assert_snapshot!(stdout, @r###"
+    A: a86754f975f9 A
+    master: a86754f975f9 A
+    "###);
 }
 
 #[test]
