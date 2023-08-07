@@ -58,9 +58,9 @@ fn test_rebase_branch_with_merge() {
     insta::assert_snapshot!(stdout, @r###"
     Abandoned commit vruxwmqv b7c62f28 d
     Rebased 1 descendant commits onto parents of abandoned commits
-    Working copy now at: znkkpsqq 11a2e10e e
-    Parent commit      : rlvkpnrz 2443ea76 a
-    Parent commit      : royxmykx fe2e8e8b c
+    Working copy now at: znkkpsqq 11a2e10e e |e
+    Parent commit      : rlvkpnrz 2443ea76 a |a
+    Parent commit      : royxmykx fe2e8e8b c |c d
     Added 0 files, modified 0 files, removed 1 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
@@ -79,7 +79,7 @@ fn test_rebase_branch_with_merge() {
     insta::assert_snapshot!(stdout, @r###"
     Abandoned commit znkkpsqq 5557ece3 e
     Working copy now at: nkmrtpmo 6b527513 (empty) (no description set)
-    Parent commit      : rlvkpnrz 2443ea76 a
+    Parent commit      : rlvkpnrz 2443ea76 a |a e??
     Added 0 files, modified 0 files, removed 3 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
@@ -101,7 +101,7 @@ fn test_rebase_branch_with_merge() {
       vruxwmqv b7c62f28 d
       royxmykx fe2e8e8b c
     Working copy now at: xtnwkqum e7bb0612 (empty) (no description set)
-    Parent commit      : rlvkpnrz 2443ea76 a
+    Parent commit      : rlvkpnrz 2443ea76 a |a e??
     Added 0 files, modified 0 files, removed 3 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
@@ -138,7 +138,7 @@ fn test_rebase_branch_with_merge() {
       zsuskuln 1394f625 b
       rlvkpnrz 2443ea76 a
     Working copy now at: xlzxqlsl af874bff (empty) (no description set)
-    Parent commit      : zzzzzzzz 00000000 (empty) (no description set)
+    Parent commit      : zzzzzzzz 00000000 (empty) (no description set) |a b e??
     Added 0 files, modified 0 files, removed 4 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
