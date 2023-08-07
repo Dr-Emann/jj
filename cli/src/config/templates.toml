@@ -17,11 +17,7 @@ show = 'builtin_log_detailed'
 'builtin_log_oneline' = '''label(if(current_working_copy, "working_copy"),
   concat(
     separate(" ",
-      label(
-        separate(" ", if(divergent, "divergent"), if(hidden, "hidden")),
-        separate(" ",
-          format_short_change_id(change_id) ++ if(divergent, "??"),
-          if(hidden, "hidden"))),
+      __builtin_decorated_change_id,
       author.username(),
       format_timestamp(committer.timestamp()),
       branches,
@@ -39,11 +35,7 @@ show = 'builtin_log_detailed'
 'builtin_log_compact' = '''label(if(current_working_copy, "working_copy"),
   concat(
     separate(" ",
-      label(
-        separate(" ", if(divergent, "divergent"), if(hidden, "hidden")),
-        separate(" ",
-          format_short_change_id(change_id) ++ if(divergent, "??"),
-          if(hidden, "hidden"))),
+      __builtin_decorated_change_id,
       format_short_signature(author),
       format_timestamp(committer.timestamp()),
       branches,
@@ -99,3 +91,13 @@ builtin_op_log_comfortable = 'builtin_op_log_compact ++ "\n"'
 'format_time_range(time_range)' = '''
   time_range.start().ago() ++ label("time", ", lasted ") ++ time_range.duration()'''
 'format_timestamp(timestamp)' = 'timestamp'
+
+# For internal use only
+__builtin_decorated_change_id = '''
+label(
+  separate(" ", if(divergent, "divergent"), if(hidden, "hidden")),
+  separate(" ",
+    format_short_change_id(change_id) ++ if(divergent, "??"),
+    if(hidden, "hidden")))
+'''
+
