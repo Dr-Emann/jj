@@ -348,23 +348,28 @@ fn interpolate_variables<V: AsRef<str>>(
     args: &[String],
     variables: &HashMap<&str, V>,
 ) -> Vec<String> {
-    // Not interested in $UPPER_CASE_VARIABLES
-    let re = Regex::new(r"\$([a-z0-9_]+)\b").unwrap();
-    args.iter()
-        .map(|arg| {
-            re.replace_all(arg, |caps: &Captures| {
-                let name = &caps[1];
-                if let Some(subst) = variables.get(name) {
-                    subst.as_ref().to_owned()
-                } else {
-                    caps[0].to_owned()
-                }
-            })
-            .into_owned()
-        })
-        .collect()
+    interpolate_variables_with(args, |caps: &Captures| {
+        let name = &caps[1];
+        if let Some(subst) = variables.get(name) {
+            subst.as_ref().to_owned()
+        } else {
+            caps[0].to_owned()
+        }
+    })
 }
 
+fn interpolate_variables_with(
+    args: &[String],
+    mut f: impl FnMut(&Captures) -> String,
+) -> Vec<String> {
+    // Not interested in $UPPER_CASE_VARIABLES
+    let re = Regex::new(r"\$([a-z0-9_]+)\b").unwrap();
+    let mut result = vec![];
+    for arg in args {
+        result.push(re.replace_all(arg, &mut f).into_owned());
+    }
+    result
+}
 pub fn edit_diff_external(
     editor: ExternalMergeTool,
     left_tree: &Tree,
