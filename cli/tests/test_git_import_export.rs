@@ -240,8 +240,8 @@ fn test_git_import_move_export_with_default_undo() {
     // the previous test. However, "git export" can't: the branches in the git
     // repo stay where they were.
     insta::assert_snapshot!(test_env.jj_cmd_success(&repo_path, &["op", "restore", &base_operation_id]), @r###"
-    Working copy now at: qpvuntsm 230dd059 (empty) (no description set)
-    Parent commit      : zzzzzzzz 00000000 (empty) (no description set)
+    Working copy now at: qpvuntsm 230dd059 |(empty) (no description set)
+    Parent commit      : zzzzzzzz 00000000 |(empty) (no description set)
     "###);
     insta::assert_snapshot!(get_branch_output(&test_env, &repo_path), @"");
     insta::assert_debug_snapshot!(get_git_repo_refs(&git_repo), @r###"

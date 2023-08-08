@@ -206,8 +206,8 @@ fn test_git_colocated_branches() {
         )
         .unwrap();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r###"
-    Working copy now at: yqosqzyt 096dc80d (empty) (no description set)
-    Parent commit      : qpvuntsm 230dd059 (empty) (no description set)
+    Working copy now at: yqosqzyt 096dc80d |(empty) (no description set)
+    Parent commit      : qpvuntsm 230dd059 |(empty) (no description set)
     @  096dc80da67094fbaa6683e2a205dddffa31f9a8
     │ ◉  1e6f0b403ed2ff9713b5d6b1dc601e4804250cda master foo
     ├─╯

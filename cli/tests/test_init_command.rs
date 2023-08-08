@@ -93,8 +93,8 @@ fn test_init_git_external(bare: bool) {
     );
     insta::allow_duplicates! {
         insta::assert_snapshot!(stdout, @r###"
-        Working copy now at: sqpuoqvx f6950fc1 (empty) (no description set)
-        Parent commit      : mwrttmos 8d698d4a My commit message
+        Working copy now at: sqpuoqvx f6950fc1 |(empty) (no description set)
+        Parent commit      : mwrttmos 8d698d4a |My commit message
         Added 1 files, modified 0 files, removed 0 files
         Initialized repo in "repo"
         "###);
