@@ -3,6 +3,7 @@ commit_summary = '''
 separate(" ",
   format_short_change_id(change_id),
   format_short_commit_id(commit_id),
+  branches,
 ) ++ label("separator", " |") ++
 separate(" ",
   if(conflict, label("conflict", "(conflict)")),
