@@ -41,8 +41,11 @@ fn main() -> std::io::Result<()> {
     }
     println!("cargo:rerun-if-env-changed=NIX_JJ_GIT_HASH");
 
-    if let Some(git_hash) = get_git_hash() {
-        println!("cargo:rustc-env=JJ_VERSION={}-{}", version, git_hash);
+    if let Some((date, git_hash)) = get_git_date_and_hash() {
+        println!(
+            "cargo:rustc-env=JJ_VERSION={}-{}-{}",
+            version, date, git_hash
+        );
     } else {
         println!("cargo:rustc-env=JJ_VERSION={}", version);
     }
@@ -50,12 +53,19 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn get_git_hash() -> Option<String> {
+/// Return the committer date in YYYYMMDD format and the git hash
+fn get_git_date_and_hash() -> Option<(String, String)> {
     if let Some(nix_hash) = std::env::var("NIX_JJ_GIT_HASH")
         .ok()
         .filter(|s| !s.is_empty())
     {
-        return Some(nix_hash);
+        return Some(("nix".to_string(), nix_hash));
+    }
+
+    fn trim_and_split_on_vbar(bytes: &[u8]) -> (String, String) {
+        let s = str::from_utf8(bytes).unwrap().trim_end();
+        let (date, id) = s.split_once('|').unwrap();
+        (date.to_owned(), id.to_owned())
     }
     if let Ok(output) = Command::new("jj")
         .args([
@@ -64,19 +74,22 @@ fn get_git_hash() -> Option<String> {
             "log",
             "--no-graph",
             "-r=@-",
-            "-T=commit_id",
+            r#"-T=committer.timestamp().format("%Y%m%d") ++ "|" ++ commit_id"#,
         ])
         .output()
     {
         if output.status.success() {
-            return Some(String::from_utf8(output.stdout).unwrap());
+            return Some(trim_and_split_on_vbar(&output.stdout));
         }
     }
 
-    if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
+    if let Ok(output) = Command::new("git")
+        .args(["log", "-1", "--format=%cs|%H", "HEAD"])
+        .output()
+    {
         if output.status.success() {
-            let line = str::from_utf8(&output.stdout).unwrap();
-            return Some(line.trim_end().to_owned());
+            let (date, hash) = trim_and_split_on_vbar(&output.stdout);
+            return Some((date.replace('-', ""), hash));
         }
     }
 
