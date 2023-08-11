@@ -41,7 +41,8 @@ fn main() -> std::io::Result<()> {
     }
     println!("cargo:rerun-if-env-changed=NIX_JJ_GIT_HASH");
 
-    if let Some((date, git_hash)) = get_git_date_and_hash() {
+    if let Some((date, mut git_hash)) = get_git_date_and_hash() {
+        git_hash.truncate(16);
         println!(
             "cargo:rustc-env=JJ_VERSION={}-{}-{}",
             version, date, git_hash
