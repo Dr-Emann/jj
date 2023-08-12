@@ -56,11 +56,17 @@ fn main() -> std::io::Result<()> {
 
 /// Return the committer date in YYYYMMDD format and the git hash
 fn get_git_date_and_hash() -> Option<(String, String)> {
-    if let Some(nix_hash) = std::env::var("NIX_JJ_GIT_HASH")
-        .ok()
-        .filter(|s| !s.is_empty())
+    if let Some((nix_hash, nix_date)) = std::iter::zip(
+        std::env::var("NIX_JJ_GIT_HASH")
+            .ok()
+            .filter(|s| !s.is_empty()),
+        std::env::var("NIX_JJ_GIT_DATE")
+            .ok()
+            .filter(|s| !s.is_empty()),
+    )
+    .next()
     {
-        return Some(("nix".to_string(), nix_hash));
+        return Some((nix_date, nix_hash));
     }
 
     fn trim_and_split_on_vbar(bytes: &[u8]) -> (String, String) {
