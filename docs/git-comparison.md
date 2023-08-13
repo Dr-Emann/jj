@@ -26,6 +26,13 @@ various use cases.
   state in Jujutsu (there's actually no way -- yet, at least -- to have an
   active branch). However, Jujutsu keeps track of all visible heads (leaves) of
   the commit graph, so the commits won't get lost or garbage-collected.
+* **No current branch.** Git lets you check out a branch, making it the 'current
+  branch', and new commits will automatically update the branch. This is
+  necessary in Git because Git might otherwise lose track of the new commits.
+  Jujutsu does not have a 'current branch'; instead, you update branches
+  manually. For example, if you check out a commit with a branch, new commits
+  are created on top of the branch, then you issue a later command to update the
+  branch.
 * **Conflicts can be committed.** No commands fail because of merge conflicts.
   The conflicts are instead recorded in commits and you can resolve them later.
   [Details](conflicts.md).
@@ -252,10 +259,15 @@ parent.
       <td>Interactively move part of the diff in an arbitrary change to another
           arbitrary change</td>
       <td><code>jj move -i --from X --to Y</code></td>
-      <td><code>Not supported</code></td>
+      <td>Not supported</td>
     </tr>
     <tr>
-      <td>Interactively split a change in two</td>
+      <td>Interactively split the changes in the working copy in two</td>
+      <td><code>jj split</code></td>
+      <td><code>git commit -p</code></td>
+    </tr>
+    <tr>
+      <td>Interactively split an arbitrary change in two</td>
       <td><code>jj split -r &lt;revision&gt;</code></td>
       <td>Not supported (can be emulated with the "edit" action in
           <code>git rebase -i</code>)</td>

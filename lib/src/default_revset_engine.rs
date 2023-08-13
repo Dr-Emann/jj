@@ -15,7 +15,7 @@
 #![allow(missing_docs)]
 
 use std::cmp::{Ordering, Reverse};
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::{BTreeSet, BinaryHeap, HashSet};
 use std::fmt;
 use std::iter::Peekable;
 use std::ops::Range;
@@ -29,13 +29,14 @@ use crate::default_index_store::{
 };
 use crate::default_revset_graph_iterator::RevsetGraphIterator;
 use crate::id_prefix::{IdIndex, IdIndexSource, IdIndexSourceEntry};
-use crate::index::{HexPrefix, Index, PrefixResolution};
+use crate::index::{HexPrefix, PrefixResolution};
 use crate::matchers::{EverythingMatcher, Matcher, PrefixMatcher, Visit};
 use crate::repo_path::RepoPath;
 use crate::revset::{
     ChangeIdIndex, ResolvedExpression, ResolvedPredicateExpression, Revset, RevsetEvaluationError,
-    RevsetFilterPredicate, RevsetGraphEdge, GENERATION_RANGE_FULL,
+    RevsetFilterPredicate, GENERATION_RANGE_FULL,
 };
+use crate::revset_graph::RevsetGraphEdge;
 use crate::rewrite;
 use crate::store::Store;
 
@@ -78,7 +79,7 @@ impl<'index> RevsetImpl<'index> {
     }
 
     pub fn iter_graph_impl(&self) -> RevsetGraphIterator<'_, 'index> {
-        RevsetGraphIterator::new(self.inner.iter())
+        RevsetGraphIterator::new(self.index, self.inner.iter())
     }
 }
 
@@ -104,7 +105,7 @@ impl<'index> Revset<'index> for RevsetImpl<'index> {
     }
 
     fn iter_graph(&self) -> Box<dyn Iterator<Item = (CommitId, Vec<RevsetGraphEdge>)> + '_> {
-        Box::new(RevsetGraphIterator::new(self.inner.iter()))
+        Box::new(self.iter_graph_impl())
     }
 
     fn change_id_index(&self) -> Box<dyn ChangeIdIndex + 'index> {
@@ -593,13 +594,15 @@ impl<'index> EvaluationContext<'index> {
             }
             ResolvedExpression::Heads(candidates) => {
                 let candidate_set = self.evaluate(candidates)?;
-                let candidate_ids = candidate_set
-                    .iter()
-                    .map(|entry| entry.commit_id())
-                    .collect_vec();
-                Ok(Box::new(self.revset_for_commit_ids(
-                    &self.index.heads(&mut candidate_ids.iter()),
-                )))
+                let head_positions: BTreeSet<_> = self
+                    .index
+                    .heads_pos(candidate_set.iter().map(|entry| entry.position()).collect());
+                let index_entries = head_positions
+                    .into_iter()
+                    .rev()
+                    .map(|pos| self.index.entry_by_pos(pos))
+                    .collect();
+                Ok(Box::new(EagerRevset { index_entries }))
             }
             ResolvedExpression::Roots(candidates) => {
                 let candidate_set = EagerRevset {
@@ -711,7 +714,7 @@ impl<'index> EvaluationContext<'index> {
         }
     }
 
-    /// Calculates `root_set:head_set`.
+    /// Calculates `root_set::head_set`.
     fn collect_dag_range<'a, 'b, S, T>(
         &self,
         root_set: &S,
@@ -870,7 +873,7 @@ fn build_predicate_fn<'index>(
         }
         RevsetFilterPredicate::HasConflict => pure_predicate_fn(move |entry| {
             let commit = store.get_commit(&entry.commit_id()).unwrap();
-            commit.tree().has_conflict()
+            commit.merged_tree().unwrap().has_conflict()
         }),
     }
 }

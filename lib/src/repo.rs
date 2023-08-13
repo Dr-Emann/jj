@@ -26,6 +26,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use thiserror::Error;
+use tracing::instrument;
 
 use self::dirty_cell::DirtyCell;
 use crate::backend::{
@@ -41,7 +42,7 @@ use crate::git_backend::GitBackend;
 use crate::index::{HexPrefix, Index, IndexStore, MutableIndex, PrefixResolution, ReadonlyIndex};
 use crate::local_backend::LocalBackend;
 use crate::op_heads_store::{self, OpHeadResolutionError, OpHeadsStore};
-use crate::op_store::{BranchTarget, OpStore, OperationId, RefTarget, WorkspaceId};
+use crate::op_store::{BranchTarget, OpStore, OpStoreError, OperationId, RefTarget, WorkspaceId};
 use crate::operation::Operation;
 use crate::refs::merge_ref_targets;
 use crate::revset::{self, ChangeIdIndex, Revset, RevsetExpression};
@@ -298,11 +299,12 @@ impl ReadonlyRepo {
     pub fn reload_at_head(
         &self,
         user_settings: &UserSettings,
-    ) -> Result<Arc<ReadonlyRepo>, OpHeadResolutionError<TreeMergeError>> {
+    ) -> Result<Arc<ReadonlyRepo>, OpHeadResolutionError<RepoLoaderError>> {
         self.loader().load_at_head(user_settings)
     }
 
-    pub fn reload_at(&self, operation: &Operation) -> Arc<ReadonlyRepo> {
+    #[instrument]
+    pub fn reload_at(&self, operation: &Operation) -> Result<Arc<ReadonlyRepo>, RepoLoaderError> {
         self.loader().load_at(operation)
     }
 }
@@ -558,6 +560,14 @@ fn read_store_type_compat(
         .map_err(|source| StoreLoadError::ReadError { store, source })
 }
 
+#[derive(Debug, Error)]
+pub enum RepoLoaderError {
+    #[error(transparent)]
+    TreeMerge(#[from] TreeMergeError),
+    #[error(transparent)]
+    OpStore(#[from] OpStoreError),
+}
+
 #[derive(Clone)]
 pub struct RepoLoader {
     repo_path: PathBuf,
@@ -617,19 +627,20 @@ impl RepoLoader {
     pub fn load_at_head(
         &self,
         user_settings: &UserSettings,
-    ) -> Result<Arc<ReadonlyRepo>, OpHeadResolutionError<TreeMergeError>> {
+    ) -> Result<Arc<ReadonlyRepo>, OpHeadResolutionError<RepoLoaderError>> {
         let op = op_heads_store::resolve_op_heads(
             self.op_heads_store.as_ref(),
             &self.op_store,
             |op_heads| self._resolve_op_heads(op_heads, user_settings),
         )?;
-        let view = View::new(op.view().take_store_view());
+        let view = View::new(op.view()?.take_store_view());
         Ok(self._finish_load(op, view))
     }
 
-    pub fn load_at(&self, op: &Operation) -> Arc<ReadonlyRepo> {
-        let view = View::new(op.view().take_store_view());
-        self._finish_load(op.clone(), view)
+    #[instrument(skip(self))]
+    pub fn load_at(&self, op: &Operation) -> Result<Arc<ReadonlyRepo>, RepoLoaderError> {
+        let view = View::new(op.view()?.take_store_view());
+        Ok(self._finish_load(op.clone(), view))
     }
 
     pub fn create_from(
@@ -658,11 +669,11 @@ impl RepoLoader {
         &self,
         op_heads: Vec<Operation>,
         user_settings: &UserSettings,
-    ) -> Result<Operation, TreeMergeError> {
-        let base_repo = self.load_at(&op_heads[0]);
+    ) -> Result<Operation, RepoLoaderError> {
+        let base_repo = self.load_at(&op_heads[0])?;
         let mut tx = base_repo.start_transaction(user_settings, "resolve concurrent operations");
         for other_op_head in op_heads.into_iter().skip(1) {
-            tx.merge_operation(other_op_head);
+            tx.merge_operation(other_op_head)?;
             tx.mut_repo().rebase_descendants(user_settings)?;
         }
         let merged_repo = tx.write().leave_unpublished();
@@ -860,8 +871,7 @@ impl MutableRepo {
         fn local_branch_target_ids(view: &View) -> impl Iterator<Item = &CommitId> {
             view.branches()
                 .values()
-                .filter_map(|branch_target| branch_target.local_target.as_ref())
-                .flat_map(|target| target.adds())
+                .flat_map(|branch_target| branch_target.local_target.added_ids())
         }
 
         let maybe_wc_commit_id = self
@@ -966,25 +976,20 @@ impl MutableRepo {
         self.view_mut().remove_branch(name);
     }
 
-    pub fn get_local_branch(&self, name: &str) -> Option<RefTarget> {
-        self.view.with_ref(|v| v.get_local_branch(name))
+    pub fn get_local_branch(&self, name: &str) -> RefTarget {
+        self.view.with_ref(|v| v.get_local_branch(name).clone())
     }
 
-    pub fn set_local_branch_target(&mut self, name: &str, target: Option<RefTarget>) {
+    pub fn set_local_branch_target(&mut self, name: &str, target: RefTarget) {
         self.view_mut().set_local_branch_target(name, target);
     }
 
-    pub fn get_remote_branch(&self, name: &str, remote_name: &str) -> Option<RefTarget> {
+    pub fn get_remote_branch(&self, name: &str, remote_name: &str) -> RefTarget {
         self.view
-            .with_ref(|v| v.get_remote_branch(name, remote_name))
+            .with_ref(|v| v.get_remote_branch(name, remote_name).clone())
     }
 
-    pub fn set_remote_branch_target(
-        &mut self,
-        name: &str,
-        remote_name: &str,
-        target: Option<RefTarget>,
-    ) {
+    pub fn set_remote_branch_target(&mut self, name: &str, remote_name: &str, target: RefTarget) {
         self.view_mut()
             .set_remote_branch_target(name, remote_name, target);
     }
@@ -993,27 +998,27 @@ impl MutableRepo {
         self.view_mut().rename_remote(old, new);
     }
 
-    pub fn get_tag(&self, name: &str) -> Option<RefTarget> {
-        self.view.with_ref(|v| v.get_tag(name))
+    pub fn get_tag(&self, name: &str) -> RefTarget {
+        self.view.with_ref(|v| v.get_tag(name).clone())
     }
 
-    pub fn set_tag_target(&mut self, name: &str, target: Option<RefTarget>) {
+    pub fn set_tag_target(&mut self, name: &str, target: RefTarget) {
         self.view_mut().set_tag_target(name, target);
     }
 
-    pub fn get_git_ref(&self, name: &str) -> Option<RefTarget> {
-        self.view.with_ref(|v| v.get_git_ref(name))
+    pub fn get_git_ref(&self, name: &str) -> RefTarget {
+        self.view.with_ref(|v| v.get_git_ref(name).clone())
     }
 
-    pub fn set_git_ref_target(&mut self, name: &str, target: Option<RefTarget>) {
+    pub fn set_git_ref_target(&mut self, name: &str, target: RefTarget) {
         self.view_mut().set_git_ref_target(name, target);
     }
 
-    pub fn git_head(&self) -> Option<RefTarget> {
-        self.view.with_ref(|v| v.git_head().cloned())
+    pub fn git_head(&self) -> RefTarget {
+        self.view.with_ref(|v| v.git_head().clone())
     }
 
-    pub fn set_git_head_target(&mut self, target: Option<RefTarget>) {
+    pub fn set_git_head_target(&mut self, target: RefTarget) {
         self.view_mut().set_git_head_target(target);
     }
 
@@ -1087,8 +1092,8 @@ impl MutableRepo {
         let base_branches: HashSet<_> = base.branches().keys().cloned().collect();
         let other_branches: HashSet<_> = other.branches().keys().cloned().collect();
         for branch_name in base_branches.union(&other_branches) {
-            let base_branch = base.branches().get(branch_name);
-            let other_branch = other.branches().get(branch_name);
+            let base_branch = base.get_branch(branch_name);
+            let other_branch = other.get_branch(branch_name);
             if other_branch == base_branch {
                 // Unchanged on other side
                 continue;
@@ -1133,8 +1138,8 @@ impl MutableRepo {
             self.view.get_mut().merge_single_ref(
                 self.index.as_index(),
                 &ref_name,
-                base_target.as_ref(),
-                other_target.as_ref(),
+                base_target,
+                other_target,
             );
         }
 
@@ -1198,8 +1203,8 @@ impl MutableRepo {
     pub fn merge_single_ref(
         &mut self,
         ref_name: &RefName,
-        base_target: Option<&RefTarget>,
-        other_target: Option<&RefTarget>,
+        base_target: &RefTarget,
+        other_target: &RefTarget,
     ) {
         self.view.get_mut().merge_single_ref(
             self.index.as_index(),

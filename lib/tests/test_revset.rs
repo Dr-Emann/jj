@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO: Remove after https://github.com/frondeus/test-case/issues/122 is resolved
-#![allow(unknown_lints)] // Needed for clippy <1.70
+// this was supposed to be fixed in 1.71.0, but barely missed the cut.
+// can be released after we bump MSRV to 1.72.0, see:
+// https://github.com/frondeus/test-case/issues/126#issuecomment-1635916592
 #![allow(clippy::items_after_test_module)]
-#![deny(unknown_lints)]
 
 use std::path::Path;
 
@@ -30,10 +30,10 @@ use jj_lib::op_store::{BranchTarget, RefTarget, WorkspaceId};
 use jj_lib::repo::Repo;
 use jj_lib::repo_path::RepoPath;
 use jj_lib::revset::{
-    optimize, parse, DefaultSymbolResolver, ReverseRevsetGraphIterator, Revset, RevsetAliasesMap,
-    RevsetExpression, RevsetFilterPredicate, RevsetGraphEdge, RevsetResolutionError,
-    RevsetWorkspaceContext, SymbolResolver as _,
+    optimize, parse, DefaultSymbolResolver, Revset, RevsetAliasesMap, RevsetExpression,
+    RevsetFilterPredicate, RevsetResolutionError, RevsetWorkspaceContext, SymbolResolver as _,
 };
+use jj_lib::revset_graph::{ReverseRevsetGraphIterator, RevsetGraphEdge};
 use jj_lib::settings::GitSettings;
 use jj_lib::tree::merge_trees;
 use jj_lib::workspace::Workspace;
@@ -846,6 +846,7 @@ fn test_evaluate_expression_heads(use_git: bool) {
     let commit1 = graph_builder.initial_commit();
     let commit2 = graph_builder.commit_with_parents(&[&commit1]);
     let commit3 = graph_builder.commit_with_parents(&[&commit2]);
+    let commit4 = graph_builder.commit_with_parents(&[&commit1]);
 
     // Heads of an empty set is an empty set
     assert_eq!(resolve_commit_ids(mut_repo, "heads(none())"), vec![]);
@@ -879,6 +880,15 @@ fn test_evaluate_expression_heads(use_git: bool) {
             &format!("heads({} | {})", commit1.id().hex(), commit3.id().hex())
         ),
         vec![commit3.id().clone()]
+    );
+
+    // Heads should be sorted in reverse index position order
+    assert_eq!(
+        resolve_commit_ids(
+            mut_repo,
+            &format!("heads({} | {})", commit3.id().hex(), commit4.id().hex())
+        ),
+        vec![commit4.id().clone(), commit3.id().clone()]
     );
 
     // Heads of all commits is the set of visible heads in the repo
@@ -1624,7 +1634,7 @@ fn test_evaluate_expression_git_refs(use_git: bool) {
             [commit3.id().clone(), commit4.id().clone()],
         ),
     );
-    mut_repo.set_git_ref_target("refs/tags/tag2", None);
+    mut_repo.set_git_ref_target("refs/tags/tag2", RefTarget::absent());
     assert_eq!(
         resolve_commit_ids(mut_repo, "git_refs()"),
         vec![
@@ -1713,7 +1723,7 @@ fn test_evaluate_expression_branches(use_git: bool) {
             [commit3.id().clone(), commit4.id().clone()],
         ),
     );
-    mut_repo.set_local_branch_target("branch3", None);
+    mut_repo.set_local_branch_target("branch3", RefTarget::absent());
     assert_eq!(
         resolve_commit_ids(mut_repo, "branches()"),
         vec![
@@ -1822,7 +1832,7 @@ fn test_evaluate_expression_remote_branches(use_git: bool) {
             [commit3.id().clone(), commit4.id().clone()],
         ),
     );
-    mut_repo.set_remote_branch_target("branch3", "origin", None);
+    mut_repo.set_remote_branch_target("branch3", "origin", RefTarget::absent());
     assert_eq!(
         resolve_commit_ids(mut_repo, "remote_branches()"),
         vec![

@@ -1,8 +1,10 @@
 # jj docs
 
 # Getting started
+- [Installation and Initial Setup](install-and-setup.md)
 - [Tutorial and Birds-Eye View](tutorial.md)
 - [Working with Github](github.md)
+- [FAQ](FAQ.md)
 
 
 # Concepts

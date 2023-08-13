@@ -6,22 +6,18 @@
 
 - [Disclaimer](#disclaimer)
 - [Introduction](#introduction)
-- [Status](#status)
-- [Installation](#installation)
-- [Command-line completion](#command-line-completion)
 - [Getting started](#getting-started)
+- [Status](#status)
 - [Related work](#related-work)
 
 ## Disclaimer
 
 This is not a Google product. It is an experimental version-control system
 (VCS). I (Martin von Zweigbergk <martinvonz@google.com>) started it as a hobby
-project in late 2019. That said, this it is now my full-time project at Google.
-My presentation from Git Merge 2022 has information about Google's plans. See
-the
+project in late 2019. That said, this is now my full-time project at Google. My
+presentation from Git Merge 2022 has information about Google's plans. See the
 [slides](https://docs.google.com/presentation/d/1F8j9_UOOSGUN9MvHxPZX_L4bQ9NMcYOp1isn17kTC_M/view)
 or the [recording](https://www.youtube.com/watch?v=bx_LGilOuE4).
-
 
 ## Introduction
 
@@ -43,7 +39,21 @@ to replace (rare in English). The project is called "Jujutsu" because it matches
 
 If you have any questions, please join us on Discord
 [![Discord](https://img.shields.io/discord/968932220549103686.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/dkmfj3aGQN)
-. The [glossary](docs/glossary.md) may also be helpful.
+or start a [GitHub Discussion](https://github.com/martinvonz/jj/discussions).
+The [glossary](docs/glossary.md) may also be helpful.
+
+
+## Getting started
+
+Follow the [installation instructions](docs/install-and-setup.md) to obtain and configure `jj`.
+
+The best way to get started is probably to go through
+[the tutorial](docs/tutorial.md). Also see the
+[Git comparison](docs/git-comparison.md), which includes a table of
+`jj` vs. `git` commands.
+
+As you become more familiar with Jujutsu, the [FAQ](docs/FAQ.md) may help.
+
 
 ## Features
 
@@ -63,20 +73,23 @@ add functionality that cannot easily be added to the Git backend.
 
 ### The working copy is automatically committed
 
-Almost all Jujutsu commands automatically commit the working copy. That means
-that commands never fail because the working copy is dirty (no "error: Your
-local changes to the following files..."), and there is no need for `git stash`.
-You also get an automatic backup of the working copy whenever you run a command.
-Also, because the working copy is a commit, commands work the same way on the
-working-copy commit as on any other commit, so you can set the commit message
-before you're done with the changes.
+Jujutsu uses a real commit to represent the working copy. Checking out a commit
+results a new working-copy commit on top of the target commit. Almost all
+commands automatically amend the working-copy commit.
+
+The working-copy being a commit means that commands never fail because the
+working copy is dirty (no "error: Your local changes to the following
+files..."), and there is no need for `git stash`. Also, because the working copy
+is a commit, commands work the same way on the working-copy commit as on any
+other commit, so you can set the commit message before you're done with the
+changes.
 
 <img src="demos/working_copy.png" />
 
 ### The repo is the source of truth
 
 With Jujutsu, the working copy plays a smaller role than with Git. Commands
-snapshot the working copy before they start, then the update the repo, and then
+snapshot the working copy before they start, then they update the repo, and then
 the working copy is updated (if the working-copy commit was modified). Almost
 all commands (even checkout!) operate on the commits in the repo, leaving the
 common functionality of snapshotting and updating of the working copy to
@@ -126,7 +139,6 @@ which lets you edit the changes in a commit without checking it out. To split
 a commit into two, use `jj split`. You can even move part of the changes in a
 commit to any other commit using `jj move`.
 
-
 ## Status
 
 The tool is quite feature-complete, but some important features like (the
@@ -143,169 +155,6 @@ on-disk formats before version 1.0.0. Even the binary's name may change (i.e.
 away from `jj`). For any format changes, we'll try to implement transparent
 upgrades (as we've done with recent changes), or provide upgrade commands or
 scripts if requested.
-
-
-## Installation
-
-See below for how to build from source. There are also
-[pre-built binaries](https://github.com/martinvonz/jj/releases) for Windows,
-Mac, or Linux (musl).
-
-### Linux
-
-On most distributions, you'll need to build from source using `cargo` directly.
-
-#### Build using `cargo`
-
-First make sure that you have the `libssl-dev`, `openssl`, and `pkg-config`
-packages installed by running something like this:
-```shell script
-sudo apt-get install libssl-dev openssl pkg-config
-```
-
-Now run:
-```shell script
-cargo install --git https://github.com/martinvonz/jj.git --locked --bin jj jj-cli
-```
-
-
-#### Nix OS
-
-If you're on Nix OS you can use the flake for this repository.
-For example, if you want to run `jj` loaded from the flake, use:
-
-```shell script
-nix run 'github:martinvonz/jj'
-```
-
-You can also add this flake url to your system input flakes. Or you can
-install the flake to your user profile:
-
-```shell script
-nix profile install 'github:martinvonz/jj'
-```
-
-
-#### Homebrew
-
-If you use linuxbrew, you can run:
-
-```shell script
-brew install jj
-```
-
-
-### Mac
-
-#### Homebrew
-
-If you use Homebrew, you can run:
-
-```shell script
-brew install jj
-```
-
-#### MacPorts
-
-You can also install `jj` via [MacPorts](https://www.macports.org) (as the `jujutsu` port):
-
-```shell script
-sudo port install jujutsu
-```
-
-([port page](https://ports.macports.org/port/jujutsu/))
-
-#### From Source
-
-You may need to run some or all of these:
-```shell script
-xcode-select --install
-brew install openssl
-brew install pkg-config
-export PKG_CONFIG_PATH="$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
-```
-
-Now run:
-```shell script
-cargo install --git https://github.com/martinvonz/jj.git --locked --bin jj jj-cli
-```
-
-
-### Windows
-
-Run:
-```shell script
-cargo install --git https://github.com/martinvonz/jj.git --locked --bin jj jj-cli --features vendored-openssl
-```
-
-
-## Initial configuration
-
-You may want to configure your name and email so commits are made in your name.
-Create a file at `~/.jjconfig.toml` and make it look something like
-this:
-```shell script
-$ cat ~/.jjconfig.toml
-[user]
-name = "Martin von Zweigbergk"
-email = "martinvonz@google.com"
-```
-
-
-## Command-line completion
-
-To set up command-line completion, source the output of
-`jj util completion --bash/--zsh/--fish` (called `jj debug completion` in
-jj <= 0.7.0). Exactly how to source it depends on your shell.
-
-### Bash
-```shell script
-source <(jj util completion)  # --bash is the default
-```
-Or, with jj <= 0.7.0:
-```shell script
-source <(jj debug completion)  # --bash is the default
-```
-
-### Zsh
-```shell script
-autoload -U compinit
-compinit
-source <(jj util completion --zsh)
-```
-Or, with jj <= 0.7.0:
-```shell script
-autoload -U compinit
-compinit
-source <(jj debug completion --zsh)
-```
-
-### Fish
-```shell script
-jj util completion --fish | source
-```
-Or, with jj <= 0.7.0:
-```shell script
-jj debug completion --fish | source
-```
-
-### Xonsh
-```shell script
-source-bash $(jj util completion)
-```
-Or, with jj <= 0.7.0:
-```shell script
-source-bash $(jj debug completion)
-```
-
-
-## Getting started
-
-The best way to get started is probably to go through
-[the tutorial](docs/tutorial.md). Also see the
-[Git comparison](docs/git-comparison.md), which includes a table of
-`jj` vs. `git` commands.
-
 
 ## Related work
 

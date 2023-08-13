@@ -79,8 +79,8 @@ recommended steps.
 
 One-time setup:
 
-    rustup toolchain add nightly  # If this is not your default
-    rustup toolchain add 1.64     # See note about MSRV & `rust-version` below
+    rustup toolchain add nightly  # wanted for 'rustfmt'
+    rustup toolchain add 1.71     # also specified in Cargo.toml
     cargo install cargo-insta
     cargo install cargo-watch
     cargo install cargo-nextest
@@ -89,7 +89,7 @@ During development (adapt according to your preference):
 
     cargo watch --ignore '.jj/**' -s \
       'cargo clippy --workspace --all-targets \
-       && cargo +1.64 check --workspace --all-targets'
+       && cargo +1.71 check --workspace --all-targets'
     cargo +nightly fmt # Occasionally
     cargo nextest run --workspace # Occasionally
     cargo insta test --workspace # Occasionally
@@ -116,9 +116,9 @@ These are listed roughly in order of decreasing importance.
    toolchain and use `cargo +nightly fmt`.
 
 3. Your code will be rejected if it cannot be compiled with the minimal
-   supported version of Rust ("MSRV"). This version is listed as
-   `rust-version` in [`Cargo.toml`](../Cargo.toml); it is 1.64 as of this
-   writing.
+   supported version of Rust ("MSRV"). Currently, `jj` follows a rather
+   casual MSRV policy: "The current `rustc` stable version, minus one."
+   As of this writing, that version is **1.71.0**.
 
 4. Your code needs to pass `cargo clippy`. You can also
    use `cargo +nightly clippy` if you wish to see more warnings.

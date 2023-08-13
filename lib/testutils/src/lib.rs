@@ -28,8 +28,10 @@ use jj_lib::repo_path::RepoPath;
 use jj_lib::rewrite::RebasedDescendant;
 use jj_lib::settings::UserSettings;
 use jj_lib::store::Store;
+use jj_lib::transaction::Transaction;
 use jj_lib::tree::Tree;
 use jj_lib::tree_builder::TreeBuilder;
+use jj_lib::working_copy::SnapshotOptions;
 use jj_lib::workspace::Workspace;
 use tempfile::TempDir;
 
@@ -156,6 +158,23 @@ impl TestWorkspace {
     pub fn root_dir(&self) -> PathBuf {
         self.temp_dir.path().join("repo").join("..")
     }
+
+    /// Snapshots the working copy and returns the tree. Updates the working
+    /// copy state on disk, but does not update the working-copy commit (no
+    /// new operation).
+    pub fn snapshot(&mut self) -> Tree {
+        let mut locked_wc = self.workspace.working_copy_mut().start_mutation().unwrap();
+        let tree_id = locked_wc
+            .snapshot(SnapshotOptions::empty_for_test())
+            .unwrap();
+        // arbitrary operation id
+        locked_wc.finish(self.repo.op_id().clone()).unwrap();
+        return self
+            .repo
+            .store()
+            .get_tree(&RepoPath::root(), &tree_id)
+            .unwrap();
+    }
 }
 
 pub fn load_repo_at_head(settings: &UserSettings, repo_path: &Path) -> Arc<ReadonlyRepo> {
@@ -163,6 +182,23 @@ pub fn load_repo_at_head(settings: &UserSettings, repo_path: &Path) -> Arc<Reado
         .unwrap()
         .load_at_head(settings)
         .unwrap()
+}
+
+pub fn commit_transactions(settings: &UserSettings, txs: Vec<Transaction>) -> Arc<ReadonlyRepo> {
+    let repo_loader = txs[0].base_repo().loader();
+    let mut op_ids = vec![];
+    for tx in txs {
+        op_ids.push(tx.commit().op_id().clone());
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    let repo = repo_loader.load_at_head(settings).unwrap();
+    // Test the setup. The assumption here is that the parent order matches the
+    // order in which they were merged (which currently matches the transaction
+    // commit order), so we want to know make sure they appear in a certain
+    // order, so the caller can decide the order by passing them to this
+    // function in a certain order.
+    assert_eq!(*repo.operation().parent_ids(), op_ids);
+    repo
 }
 
 pub fn read_file(store: &Store, path: &RepoPath, id: &FileId) -> Vec<u8> {
@@ -176,15 +212,20 @@ pub fn write_file(store: &Store, path: &RepoPath, contents: &str) -> FileId {
     store.write_file(path, &mut contents.as_bytes()).unwrap()
 }
 
-pub fn write_normal_file(tree_builder: &mut TreeBuilder, path: &RepoPath, contents: &str) {
+pub fn write_normal_file(
+    tree_builder: &mut TreeBuilder,
+    path: &RepoPath,
+    contents: &str,
+) -> FileId {
     let id = write_file(tree_builder.store(), path, contents);
     tree_builder.set(
         path.clone(),
         TreeValue::File {
-            id,
+            id: id.clone(),
             executable: false,
         },
     );
+    id
 }
 
 pub fn write_executable_file(tree_builder: &mut TreeBuilder, path: &RepoPath, contents: &str) {

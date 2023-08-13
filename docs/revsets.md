@@ -60,8 +60,10 @@ only symbols.
 * `x+`: Children of `x`.
 * `:x`: Ancestors of `x`, including the commits in `x` itself.
 * `x:`: Descendants of `x`, including the commits in `x` itself.
-* `x:y`: Descendants of `x` that are also ancestors of `y`. Equivalent to
-  `x: & :y`. This is what `git log` calls `--ancestry-path x..y`.
+* `x:y`: Descendants of `x` that are also ancestors of `y`. Equivalent
+   to `x: & :y`. This is what `git log` calls `--ancestry-path x..y`.
+* `::x`, `x::`, and `x::y`: New versions of for `:x`, `x:`, and `x:y` to be
+  released in jj 0.9.0. We plan to delete the latter in jj 0.15+.
 * `x..y`: Ancestors of `y` that are not also ancestors of `x`. Equivalent to
   `:y ~ :x`. This is what `git log` calls `x..y` (i.e. the same as we call it).
 * `..x`: Ancestors of `x`, including the commits in `x` itself. Equivalent to
@@ -186,6 +188,7 @@ jj log -r 'tags() | branches()'
 
 Show local commits leading up to the working copy, as well as descendants of
 those commits:
+
 
 ```
 jj log -r '(remote_branches()..@):'

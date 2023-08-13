@@ -40,16 +40,19 @@ use crate::file_util::persist_content_addressed_temp_file;
 use crate::index::{
     HexPrefix, Index, IndexStore, IndexWriteError, MutableIndex, PrefixResolution, ReadonlyIndex,
 };
-#[cfg(not(feature = "map_first_last"))]
-// This import is used on Rust 1.61, but not on recent version.
-// TODO: Remove it when our MSRV becomes recent enough.
-#[allow(unused_imports)]
-use crate::nightly_shims::BTreeSetExt;
-use crate::op_store::OperationId;
+use crate::op_store::{OpStoreError, OperationId};
 use crate::operation::Operation;
 use crate::revset::{ResolvedExpression, Revset, RevsetEvaluationError};
 use crate::store::Store;
 use crate::{backend, dag_walk, default_revset_engine};
+
+#[derive(Debug, Error)]
+pub enum DefaultIndexStoreError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    OpStore(#[from] OpStoreError),
+}
 
 #[derive(Debug)]
 pub struct DefaultIndexStore {
@@ -104,8 +107,8 @@ impl DefaultIndexStore {
         &self,
         store: &Arc<Store>,
         operation: &Operation,
-    ) -> io::Result<Arc<ReadonlyIndexImpl>> {
-        let view = operation.view();
+    ) -> Result<Arc<ReadonlyIndexImpl>, DefaultIndexStoreError> {
+        let view = operation.view()?;
         let operations_dir = self.dir.join("operations");
         let commit_id_length = store.commit_id_length();
         let change_id_length = store.change_id_length();
@@ -121,7 +124,7 @@ impl DefaultIndexStore {
                     parent_op_id = Some(op.id().clone())
                 }
             } else {
-                for head in op.view().heads() {
+                for head in op.view()?.heads() {
                     new_heads.insert(head.clone());
                 }
             }
@@ -1004,7 +1007,7 @@ impl<'a> CompositeIndex<'a> {
         rev_walk
     }
 
-    fn heads_pos(
+    pub fn heads_pos(
         &self,
         mut candidate_positions: BTreeSet<IndexPosition>,
     ) -> BTreeSet<IndexPosition> {
@@ -2948,7 +2951,7 @@ mod tests {
         );
 
         // Merge range with sub-range (1..4 + 2..3 should be 1..4, not 1..3):
-        // 8,7,6->5:1..4, B5_1->5:2..3
+        // 8,7,6->5::1..4, B5_1->5::2..3
         assert_eq!(
             walk_commit_ids(
                 &[&ids[8], &ids[7], &ids[6], &id_branch5_1].map(Clone::clone),

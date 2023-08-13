@@ -9,9 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
+* The minimum supported Rust version (MSRV) is now 1.71.0.
+
+* The storage format of branches, tags, and git refs has changed. Newly-stored
+  repository data will no longer be loadable by older binaries.
+
+* The `:` revset operator is deprecated. Use `::` instead. We plan to delete the
+  `:` form in jj 0.15+.
+
+* The `--allow-large-revsets` flag for `jj rebase` and `jj new` was replaced by
+  a `all:` before the revset. For example, use `jj rebase -d 'all:foo-'`
+  instead of `jj rebase --allow-large-revsets -d 'foo-'`.
+
+* The `--allow-large-revsets` flag for `jj rebase` and `jj new` can no longer be
+  used for allowing duplicate destinations. Include the potential duplicates
+  in a single expression instead (e.g. `jj new 'all:x|y'`).
+
+* The `push.branch-prefix` option was renamed to `git.push-branch-prefix`.
+
+* The default editor on Windows is now `Notepad` instead of `pico`.
+
 ### New features
 
+* `jj init --git-repo` now works with bare repositories.
+
+* `jj config edit --user` and `jj config set --user` will now pick a default
+  config location if no existing file is found, potentially creating parent directories.
+
+* `jj log` output is now topologically grouped.
+  [#242](https://github.com/martinvonz/jj/issues/242)
+
+* `jj git clone` now supports the `--colocate` flag to create the git repo
+  in the same directory as the jj repo.
+
+* `jj restore` gained a new option `--changes-in` to restore files
+  from a merge revision's parents. This undoes the changes that `jj diff -r`
+  would show.
+
+* `jj diff`/`log` now supports `--tool <name>` option to generate diffs by
+  external program. For configuration, see [the documentation](docs/config.md).
+  [#1886](https://github.com/martinvonz/jj/issues/1886)
+
+* `jj log`/`obslog`/`op log` now supports `--limit N` option to show the first
+  `N` entries.
+
+* Added the `ui.paginate` option to enable/disable pager usage in commands
+
 ### Fixed bugs
+
+* SSH authentication could hang when ssh-agent couldn't be reached
+  [#1970](https://github.com/martinvonz/jj/issues/1970)
+  
+* SSH authentication can now use ed25519 and ed25519-sk keys. They still need
+  to be password-less.
+
+* Git repository managed by the repo tool can now be detected as a "colocated"
+  repository.
+  [#2011](https://github.com/martinvonz/jj/issues/2011)
 
 ## [0.8.0] - 2023-07-09
 
@@ -206,6 +260,7 @@ Thanks to the people who made this release happen!
 * Isabella Basso (@isinyaaa)
 * Kevin Liao (@kevincliao)
 * Martin von Zweigbergk (@martinvonz)
+* mlcui (@mlcui-google)
 * Samuel Tardieu (@samueltardieu)
 * Tal Pressman (@talpr)
 * Vamsi Avula (@avamsi)
