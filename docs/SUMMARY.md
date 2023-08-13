@@ -1,5 +1,7 @@
 # jj docs
 
+- [README](README.md)
+
 # Getting started
 - [Tutorial and Birds-Eye View](tutorial.md)
 - [Working with Github](github.md)
