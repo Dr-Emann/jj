@@ -1,6 +1,6 @@
 [book]
 title = "Jujutsu docs"
-src="docs"
+src="."
 
 [build]
-build-dir="rendered-docs"
+build-dir="../rendered-docs"
