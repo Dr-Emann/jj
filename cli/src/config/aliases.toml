@@ -1,0 +1,6 @@
+[aliases]
+# Placeholder: added by user
+
+[revset-aliases]
+trunk = "latest((present(main) | present(master) | present(root)) & remote_branches())"
+
