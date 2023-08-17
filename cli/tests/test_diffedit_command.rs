@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::common::TestEnvironment;
+use crate::common::{escaped_fake_diff_editor_path, TestEnvironment};
 
 pub mod common;
 
@@ -51,6 +51,134 @@ fn test_diffedit() {
     // Nothing happens if the diff-editor exits with an error
     std::fs::write(&edit_script, "rm file2\0fail").unwrap();
     insta::assert_snapshot!(&test_env.jj_cmd_failure(&repo_path, &["diffedit"]), @r###"
+    Error: Failed to edit diff: Tool exited with a non-zero code (run with --verbose to see the exact invocation). Exit code: 1.
+    "###);
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diff", "-s"]);
+    insta::assert_snapshot!(stdout, @r###"
+    R file1
+    M file2
+    "###);
+
+    // Can edit changes to individual files
+    std::fs::write(&edit_script, "reset file2").unwrap();
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diffedit"]);
+    insta::assert_snapshot!(stdout, @r###"
+    Created kkmpptxz 1930da4a (no description set)
+    Working copy now at: kkmpptxz 1930da4a (no description set)
+    Parent commit      : rlvkpnrz 613028a4 (no description set)
+    Added 0 files, modified 1 files, removed 0 files
+    "###);
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diff", "-s"]);
+    insta::assert_snapshot!(stdout, @r###"
+    R file1
+    "###);
+
+    // Changes to a commit are propagated to descendants
+    test_env.jj_cmd_success(&repo_path, &["undo"]);
+    std::fs::write(&edit_script, "write file3\nmodified\n").unwrap();
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diffedit", "-r", "@-"]);
+    insta::assert_snapshot!(stdout, @r###"
+    Created rlvkpnrz c03ae967 (no description set)
+    Rebased 1 descendant commits
+    Working copy now at: kkmpptxz 2a4dc204 (no description set)
+    Parent commit      : rlvkpnrz c03ae967 (no description set)
+    Added 0 files, modified 1 files, removed 0 files
+    "###);
+    let contents = String::from_utf8(std::fs::read(repo_path.join("file3")).unwrap()).unwrap();
+    insta::assert_snapshot!(contents, @r###"
+    modified
+    "###);
+
+    // Test diffedit --from @--
+    test_env.jj_cmd_success(&repo_path, &["undo"]);
+    std::fs::write(
+        &edit_script,
+        "files-before file1\0files-after JJ-INSTRUCTIONS file2 file3\0reset file2",
+    )
+    .unwrap();
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diffedit", "--from", "@--"]);
+    insta::assert_snapshot!(stdout, @r###"
+    Created kkmpptxz 15f2c966 (no description set)
+    Working copy now at: kkmpptxz 15f2c966 (no description set)
+    Parent commit      : rlvkpnrz 613028a4 (no description set)
+    Added 0 files, modified 0 files, removed 1 files
+    "###);
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diff", "-s"]);
+    insta::assert_snapshot!(stdout, @r###"
+    R file1
+    R file2
+    "###);
+}
+
+#[test]
+fn test_diffedit_3pane() {
+    let mut test_env = TestEnvironment::default();
+    test_env.jj_cmd_success(test_env.env_root(), &["init", "repo", "--git"]);
+    let repo_path = test_env.env_root().join("repo");
+
+    std::fs::write(repo_path.join("file1"), "a\n").unwrap();
+    test_env.jj_cmd_success(&repo_path, &["new"]);
+    std::fs::write(repo_path.join("file2"), "a\n").unwrap();
+    std::fs::write(repo_path.join("file3"), "a\n").unwrap();
+    test_env.jj_cmd_success(&repo_path, &["new"]);
+    std::fs::remove_file(repo_path.join("file1")).unwrap();
+    std::fs::write(repo_path.join("file2"), "b\n").unwrap();
+
+    // 2 configs for a 3-pane setup. In the first, "$right" is passed to what the
+    // fake diff editor considers the "after" state.
+    let config_with_right_as_after = format!(
+        r#"ui.diff-editor=["{}", "$left", "$right", "--ignore=$output"]"#,
+        escaped_fake_diff_editor_path()
+    );
+    let config_with_output_as_after = format!(
+        r#"ui.diff-editor=["{}", "$left", "$output", "--ignore=$right"]"#,
+        escaped_fake_diff_editor_path()
+    );
+    let edit_script = test_env.env_root().join("diff_edit_script");
+    std::fs::write(&edit_script, "").unwrap();
+    test_env.add_env_var("DIFF_EDIT_SCRIPT", edit_script.to_str().unwrap());
+
+    // Nothing happens if we make no changes
+    std::fs::write(
+        &edit_script,
+        "files-before file1 file2\0files-after JJ-INSTRUCTIONS file2",
+    )
+    .unwrap();
+    let stdout = test_env.jj_cmd_success(
+        &repo_path,
+        &["diffedit", "--config-toml", &config_with_right_as_after],
+    );
+    // STOPPED HERE
+    insta::assert_snapshot!(stdout, @r###"
+    Nothing changed.
+    "###);
+    let stdout = test_env.jj_cmd_success(&repo_path, &["diff", "-s"]);
+    insta::assert_snapshot!(stdout, @r###"
+    R file1
+    M file2
+    "###);
+
+    // Nothing happens if the diff-editor exits with an error
+    std::fs::write(&edit_script, "rm file2\0fail").unwrap();
+    insta::assert_snapshot!(&test_env.jj_cmd_failure(&repo_path, &["diffedit"]), @r###"
+    Using default editor 'meld'; you can change this by setting ui.diff-editor
+    Traceback (most recent call last):
+      File "/bin/meld", line 463, in <module>
+        sys.exit(main())
+                 ^^^^^^
+      File "/bin/meld", line 458, in main
+        setup_settings()
+      File "/bin/meld", line 317, in setup_settings
+        meld.settings.create_settings()
+      File "/usr/lib/python3/dist-packages/meld/settings.py", line 124, in create_settings
+        _meldsettings = MeldSettings()
+                        ^^^^^^^^^^^^^^
+      File "/usr/lib/python3/dist-packages/meld/settings.py", line 39, in __init__
+        self.on_setting_changed(settings, 'prefer-dark-theme')
+      File "/usr/lib/python3/dist-packages/meld/settings.py", line 58, in on_setting_changed
+        gtk_settings.props.gtk_application_prefer_dark_theme = prefer_dark
+        ^^^^^^^^^^^^^^^^^^
+    AttributeError: 'NoneType' object has no attribute 'props'
     Error: Failed to edit diff: Tool exited with a non-zero code (run with --verbose to see the exact invocation). Exit code: 1.
     "###);
     let stdout = test_env.jj_cmd_success(&repo_path, &["diff", "-s"]);
